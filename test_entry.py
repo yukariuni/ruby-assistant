@@ -2,11 +2,13 @@
 
 Le même autotest sert à vérifier l'exe compilé:  dist\\Ruby\\Ruby.exe --selftest.  Lancer: .venv\\Scripts\\python test_entry.py
 """
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -26,6 +28,22 @@ broken = tmp / "cassé"
 (broken / "joblib" / "__init__.py").write_text("raise ImportError('manque')")
 r = subprocess.run([sys.executable, str(ROOT / "ruby.py"), "--selftest"], env=dict(os.environ, RUBY_HOME=str(tmp), PYTHONPATH=str(broken)), capture_output=True)
 assert r.returncode == 1 and "ÉCHEC  import joblib" in (tmp / "selftest.txt").read_text("utf-8")
+
+# --quit demande l'arrêt (l'installateur s'en sert); un « arrêter » resté d'avant, quand rien ne tournait, ne doit pas tuer le moteur suivant
+env = dict(os.environ, RUBY_HOME=str(tmp), QT_QPA_PLATFORM="offscreen")
+quit_cmd = [sys.executable, str(ROOT / "ruby.py"), "--quit"]
+assert subprocess.run(quit_cmd, env=env, capture_output=True).returncode == 0 and (tmp / "engine.quit").exists()
+engine = subprocess.Popen([sys.executable, str(ROOT / "ruby.py")], env=env)  # le moteur, par le point d'entrée (sans voix apprise: « needs_sync »)
+try:
+    time.sleep(6)
+    assert engine.poll() is None, "le moteur démarre malgré le vieux engine.quit"
+    status = json.loads((tmp / "status.json").read_text("utf-8"))
+    assert status["state"] == "needs_sync" and time.time() - status["ts"] < 3, status
+    subprocess.run(quit_cmd, env=env, capture_output=True)
+    assert engine.wait(10) == 0, "--quit arrête le moteur proprement"
+finally:
+    if engine.poll() is None:
+        engine.kill()
 
 # lanceur: depuis les sources « pythonw script.py »; dans l'exe, l'exe lui-même (Ruby.exe, et --settings pour les réglages)
 import config

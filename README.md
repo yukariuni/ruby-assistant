@@ -4,6 +4,24 @@ Assistant vocal pour Windows, dans l'esprit de Siri: « *Hey Ruby, ouvre Discord
 
 Tout tourne sur ton PC (reconnaissance vocale, voix, mot d'activation). Seul le « cerveau » Groq est en ligne, et il est facultatif: sans clé, Ruby utilise des règles locales.
 
+## Installer
+
+1. Télécharge `Ruby-Setup-x.y.z.exe` dans les **Releases** du dépôt.
+2. Lance-le. Options proposées: une icône sur le bureau, et **« Lancer Ruby à l'ouverture de ma session Windows »**.
+3. À la fin Ruby se lance et ouvre ses réglages: *Écoute > Apprendre ma voix* (≈1 minute).
+
+L'installation est pour toi seul (pas besoin d'être administrateur): `%LOCALAPPDATA%\Programs\Ruby`. L'assistant d'installation est en français ou en anglais selon Windows. Pour désinstaller: *Paramètres > Applications*; tes réglages et ta voix apprise (`%APPDATA%\Ruby`) et les modèles téléchargés restent, à toi de les supprimer (*Modèles > Gérer* dans les réglages).
+
+L'installateur n'est pas signé: Windows peut afficher « Windows a protégé votre ordinateur », clique sur *Informations complémentaires* puis *Exécuter quand même*.
+
+## Langue
+
+La langue de Ruby (reconnaissance, réponses, voix) **suit celle de Windows** par défaut: *Réglages > Général > Langue > Automatique*. Tu peux imposer *Français* ou *English* à la place; si Windows est dans une autre langue, Ruby parle English. L'interface des réglages, elle, est pour l'instant seulement en français.
+
+## Lancer avec Windows
+
+À l'installation (case à cocher), ou plus tard dans *Réglages > Général > Démarrage*. C'est la même entrée que celle du *Gestionnaire des tâches > Démarrage*, où tu peux aussi la désactiver. Ruby démarre en arrière-plan (≈10 Mo) avec une icône dans la barre des tâches.
+
 ## Comment ça marche
 
 1. **Mot d'activation**: tu dis ton mot (« hi », « hey », « salut »… suivi de « Ruby »). Un petit classifieur appris sur *ta* voix (`Apprendre ma voix`) décide si c'est toi. Un halo s'allume autour de l'écran et un petit son te dit de parler.
@@ -34,27 +52,29 @@ py -3.12 -m venv .venv
 .venv\Scripts\pythonw ruby.py --settings   :: les réglages (un processus à part)
 ```
 
-Au premier lancement, ouvre les réglages: *Écoute > Apprendre ma voix* (≈1 minute). Les modèles se téléchargent une seule fois (Whisper ≈480 Mo, voix ≈385 Mo), dans le dossier de ton choix (*Modèles > Gérer*). `ruby.py --debug` affiche les journaux et enregistre chaque commande dans `logs/`.
+Les modèles se téléchargent une seule fois (Whisper ≈480 Mo, voix ≈385 Mo), dans le dossier de ton choix (*Modèles > Gérer*). `ruby.py --debug` affiche les journaux et enregistre chaque commande dans `logs/`; `ruby.py --quit` arrête un Ruby qui tourne.
 
-## Compiler `Ruby.exe`
+## Construire l'installateur
 
 ```bat
 .venv\Scripts\pip install -r requirements-dev.txt
-.venv\Scripts\pyinstaller ruby.spec --noconfirm
-dist\Ruby\Ruby.exe --selftest
+installer\build.ps1 -Version 1.0.0
+installer\verify.ps1 -Setup installer\Output\Ruby-Setup-1.0.0.exe
 ```
 
-C'est un **dossier** (`dist\Ruby\Ruby.exe` + `_internal`), pas un fichier unique: un exe unique de ≈400 Mo se décompresserait dans `%TEMP%` à chaque lancement. `Ruby.exe` lance le moteur, `Ruby.exe --settings` les réglages. `--selftest` vérifie bibliothèques, sons, logo et certificats, et écrit `selftest.txt`.
+`build.ps1` compile l'application avec PyInstaller (`ruby.spec`, dossier `dist\Ruby`), vérifie l'exe (`Ruby.exe --selftest`: bibliothèques, sons, logo, certificats) puis fabrique `installer\Output\Ruby-Setup-<version>.exe` avec [Inno Setup 6](https://jrsoftware.org/isdl.php) (à installer). `verify.ps1` installe, teste et désinstalle pour de faux dans un dossier temporaire.
 
-Dans l'exe, réglages, voix apprise, journaux et cache vivent dans `%APPDATA%\Ruby` (variable `RUBY_HOME` pour changer de dossier, par exemple en mode portable). Pour reprendre ta config des sources: copie `config.json` et `voice\` dans ce dossier.
+L'application est un **dossier** (`Ruby.exe` + `_internal`, ≈440 Mo), pas un fichier unique: un exe unique se décompresserait dans `%TEMP%` à chaque lancement. L'installateur le compresse en ≈115 Mo. Dans l'application installée, réglages, voix apprise, journaux et cache vivent dans `%APPDATA%\Ruby` (variable `RUBY_HOME` pour changer de dossier). `Ruby.exe` lance le moteur, `Ruby.exe --settings` les réglages.
+
+**Publier une version**: `git tag v1.0.0` puis `git push origin v1.0.0`. GitHub Actions (`.github/workflows/release.yml`) construit l'installateur, le vérifie (installation, autotest, désinstallation) et le joint à la release. Sans étiquette (*Actions > Installateur > Run workflow*) il construit et vérifie sans rien publier.
 
 ## Tests
 
 ```bat
-for %t in (models wake engine_paths settings sync actions brain audio entry) do .venv\Scripts\python test_%t.py
+for %t in (models wake engine_paths settings sync actions brain audio config entry) do .venv\Scripts\python test_%t.py
 ```
 
-Chaque fichier affiche `OK`. Ils travaillent dans des dossiers temporaires: aucun de tes modèles ni réglages n'est touché. `test_wake.py` compare l'extracteur de `wake.py` au paquet `openwakeword` d'origine (`requirements-dev.txt`).
+Chaque fichier affiche `OK`. Ils travaillent dans des dossiers temporaires (et une clé de registre de test): aucun de tes modèles ni réglages n'est touché. `test_wake.py` compare l'extracteur de `wake.py` au paquet `openwakeword` d'origine (`requirements-dev.txt`).
 
 ## Tes données ne partent jamais dans git
 
@@ -64,17 +84,19 @@ Chaque fichier affiche `OK`. Ils travaillent dans des dossiers temporaires: aucu
 
 | | |
 |---|---|
-| `ruby.py` | point d'entrée (moteur, `--settings`, `--debug`, `--selftest`) |
+| `ruby.py` | point d'entrée (moteur, `--settings`, `--debug`, `--quit`, `--selftest`) |
 | `engine.py` | moteur: écoute, enregistre, transcrit, agit, répond; icône de la barre et halo d'écran |
 | `settings.py` | fenêtre de réglages (Qt) |
 | `wake.py` | mot d'activation appris sur ta voix |
 | `actions.py`, `brain.py` | règles locales / cerveau Groq |
 | `tts.py`, `audio.py` | voix (+ cache disque), sons et périphériques |
 | `models.py` | où sont les modèles, déplacer / supprimer, copie int8 de Whisper |
-| `config.py`, `memory.py`, `overlay.py` | réglages partagés, mesure de mémoire, halo |
-| `ruby.spec` | recette de compilation de l'exe |
+| `config.py`, `memory.py`, `overlay.py` | réglages partagés (langue de Windows, lancement avec Windows), mesure de mémoire, halo |
+| `ruby.spec` | recette PyInstaller de l'application |
+| `installer/` | script Inno Setup (`ruby.iss`), construction (`build.ps1`) et vérification (`verify.ps1`) de l'installateur |
+| `.github/workflows/` | publication automatique de l'installateur |
 | `tools/` | mesures réelles de mémoire |
 
 ## Crédits
 
-[faster-whisper](https://github.com/SYSTRAN/faster-whisper) / CTranslate2 (reconnaissance), [Supertonic](https://huggingface.co/Supertone/supertonic-3) (voix), [openWakeWord](https://github.com/dscripka/openWakeWord) (extraction des caractéristiques du mot d'activation, Apache-2.0), [Groq](https://groq.com) (cerveau en ligne), sons de [Kenney](https://kenney.nl) (CC0).
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) / CTranslate2 (reconnaissance), [Supertonic](https://huggingface.co/Supertone/supertonic-3) (voix), [openWakeWord](https://github.com/dscripka/openWakeWord) (extraction des caractéristiques du mot d'activation, Apache-2.0), [Groq](https://groq.com) (cerveau en ligne), sons de [Kenney](https://kenney.nl) (CC0), [Inno Setup](https://jrsoftware.org/isinfo.php) (installateur; utilisé ici sans licence commerciale, donc pour un usage non commercial).

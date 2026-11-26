@@ -24,6 +24,8 @@ config.LEGACY_MODEL = tmp / "voice" / "wake.pkl"  # jamais le vrai fichier de l'
 models.default_folder = lambda kind: tmp / "defaut" / kind  # jamais le vrai cache Hugging Face / Supertonic de l'utilisateur
 launched = []
 config.launch = lambda script: launched.append(script)
+config.RUN_KEY, config.APPROVED_KEY = r"Software\RubyTest\Settings\Run", r"Software\RubyTest\Settings\Approved"  # jamais la vraie clé « Run »
+real_os_lang = config.os_lang
 
 
 def write(p, data=b"x" * 2000):
@@ -221,6 +223,42 @@ QTest.qWait(100)
 assert w.test_btn.isEnabled()
 del sys.modules["tts"]
 
+# --- langue: « Automatique » suit Windows (et le dit), un choix explicite reste jusqu'à ce qu'on rechoisisse « Automatique »
+cb = w.lang_combo
+assert [cb.itemData(i) for i in range(cb.count())] == ["auto"] + list(config.LANGS)
+assert cb.currentData() == "auto" and f"Windows ({real_os_lang()})" in cb.itemText(0) and w.cfg["lang_auto"], "par défaut: automatique, et le texte dit laquelle"
+cb.setCurrentIndex(cb.findData("English"))
+saved = json.loads(config.CFG_FILE.read_text("utf-8"))
+assert w.cfg["lang"] == "English" and not w.cfg["lang_auto"] and saved["lang"] == "English" and saved["lang_auto"] is False, saved
+config.os_lang = lambda: "Français"
+cb.setCurrentIndex(0)
+saved = json.loads(config.CFG_FILE.read_text("utf-8"))
+assert w.cfg["lang"] == "Français" and w.cfg["lang_auto"] and saved["lang"] == "Français" and saved["lang_auto"] is True, saved
+assert config.load_cfg()["lang_auto"] is True
+config.os_lang = real_os_lang
+
+# --- lancer Ruby avec Windows: l'interrupteur écrit dans la clé de test, une erreur d'écriture est annoncée sans planter
+t = w.autostart_toggle
+assert not t.isChecked() and not config.autostart()
+t.setChecked(True)
+assert config.autostart(), "activé: Windows lancera Ruby à l'ouverture de session"
+t.setChecked(False)
+assert not config.autostart()
+toasts = []
+w.toast = lambda text, error=False: toasts.append((text, error))
+real_set = config.set_autostart
+
+
+def refuse(on):
+    raise PermissionError("accès refusé")
+
+
+config.set_autostart = refuse
+w.set_autostart(True)
+assert toasts and toasts[0][1] is True and "accès refusé" in toasts[0][0], toasts
+config.set_autostart = real_set
+del w.toast
+
 # --- animations: les effets temporaires sont retirés, tout arrive à son état final
 for i in (1, 2, 3, 4, 5, 0):
     w.pages.setCurrentIndex(i)
@@ -253,5 +291,11 @@ assert w.pages.currentIndex() == 5 and w.models_box.count() >= 2
 settings.ANIMATE = True
 
 w.close()
+import winreg
+for key in (config.RUN_KEY, config.APPROVED_KEY, r"Software\RubyTest\Settings", r"Software\RubyTest"):
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key)
+    except OSError:
+        pass
 shutil.rmtree(tmp, ignore_errors=True)
 print("OK")

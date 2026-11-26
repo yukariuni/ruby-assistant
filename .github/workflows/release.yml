@@ -1,0 +1,64 @@
+# Construit l'installateur de Ruby (Setup.exe) et le publie dans une release GitHub quand on pousse une étiquette « v1.2.3 ».
+# Lancé à la main (Actions > Installateur > Run workflow), il construit et vérifie l'installateur sans rien publier.
+name: Installateur
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # créer la release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"  # onnxruntime n'a pas de version pour les Python plus récents
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Bibliothèques
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Inno Setup 6.7.4
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download is-6_7_4 --repo jrsoftware/issrc --pattern "innosetup-6.7.4.exe" --dir "$env:RUNNER_TEMP"
+          Start-Process "$env:RUNNER_TEMP\innosetup-6.7.4.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-" -Wait
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ($env:GITHUB_REF -like "refs/tags/v*") { $env:GITHUB_REF_NAME.Substring(1) } else { "0.0.0-dev" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Construire l'installateur (PyInstaller, autotest de l'exe, Inno Setup)
+        shell: pwsh
+        run: ./installer/build.ps1 -Version "${{ steps.version.outputs.version }}" -Python python
+
+      - name: Vérifier l'installateur (installation, autotest de l'exe installé, désinstallation)
+        shell: pwsh
+        run: ./installer/verify.ps1 -Setup "installer/Output/Ruby-Setup-${{ steps.version.outputs.version }}.exe"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Ruby-Setup-${{ steps.version.outputs.version }}
+          path: installer/Output/*.exe
+
+      - name: Publier la release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$env:GITHUB_REF_NAME"
+          "installer/Output/Ruby-Setup-${{ steps.version.outputs.version }}.exe"
+          --title "Ruby ${{ steps.version.outputs.version }}" --generate-notes

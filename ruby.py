@@ -3,6 +3,7 @@
     ruby.py               le moteur: icône dans la barre des tâches, écoute du mot d'activation
     ruby.py --settings    la fenêtre de réglages (un processus à part: le moteur reste à ≈10 Mo)
     ruby.py --debug       le moteur, avec les journaux dans la console et chaque commande enregistrée dans logs/
+    ruby.py --quit        demande à un Ruby qui tourne de s'arrêter (l'installateur s'en sert avant de remplacer ses fichiers)
     ruby.py --selftest    vérifie que tout est là (bibliothèques, sons, logo) et l'écrit dans selftest.txt (dossier de données);
                           avec --models, fait aussi tourner Whisper et la voix si tes modèles sont installés
 """
@@ -92,6 +93,10 @@ def selftest():
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         sys.exit(selftest())
+    if "--quit" in sys.argv:
+        import config
+        config.QUIT_FILE.touch()
+        sys.exit(0)
     if "--settings" in sys.argv:
         import settings
         settings.main()

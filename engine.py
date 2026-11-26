@@ -396,6 +396,7 @@ def main():
     lock = QLockFile(str(config.ROOT / "engine.lock"))
     if not lock.tryLock(100):  # déjà lancé: une seule instance (sinon deux micros, deux voix)
         sys.exit(0)
+    config.QUIT_FILE.unlink(missing_ok=True)  # reste d'un « arrêter » demandé quand Ruby ne tournait pas: il arrêterait ce nouveau lancement
     engine = Engine(app)  # noqa: F841 (garde la référence)
     sys.exit(app.exec())
 

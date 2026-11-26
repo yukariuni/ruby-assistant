@@ -1352,8 +1352,14 @@ class Settings(QMainWindow):
         self.words.textChanged.connect(lambda t: self.set("words", t.strip()))
         c.row("Mots d'activation", "Séparés par « ; ». Chaque mot est suivi de « Ruby » (hi;hey → « Hi Ruby », « Hey Ruby »). "
               "Refais « Apprendre ma voix » après un changement.", self.words)
-        c.row("Langue", "Langue de la reconnaissance vocale et des réponses.",
-              self.combo("lang", [(n, n) for n in LANGS], self.refresh_voices))
+        self.lang_combo = Combo()
+        self.lang_combo.setFixedWidth(270)
+        self.lang_combo.addItem(f"Automatique · Windows ({config.os_lang()})", "auto")
+        for n in LANGS:
+            self.lang_combo.addItem(n, n)
+        self.lang_combo.setCurrentIndex(self.lang_combo.findData("auto" if self.cfg["lang_auto"] else self.cfg["lang"]))
+        self.lang_combo.currentIndexChanged.connect(lambda i: self.set_lang(self.lang_combo.itemData(i)))
+        c.row("Langue", "Langue de la reconnaissance vocale et des réponses. « Automatique » suit la langue d'affichage de Windows.", self.lang_combo)
         c.row("Micro", "", self.combo("mic", self.devices("input")))
         c.row("Haut-parleurs", "", self.combo("speaker", self.devices("output")))
         v.addWidget(c)
@@ -1361,6 +1367,11 @@ class Settings(QMainWindow):
         c2.row("Volume de Ruby", "Sons et voix.", self.slider("volume", 0.05, 1.0, lambda x: f"{round(x * 100)} %"))
         c2.row("Lueur d'écran", "Un halo lumineux autour de l'écran quand Ruby t'écoute.", Toggle(self.cfg["glow"], lambda on: self.set("glow", on)))
         v.addWidget(c2)
+        c_start = Card("Démarrage")
+        self.autostart_toggle = Toggle(config.autostart(), self.set_autostart)
+        c_start.row("Lancer Ruby avec Windows", "Ruby démarre tout seul quand tu ouvres ta session, en arrière-plan (≈10 Mo), prête à t'écouter.",
+                    self.autostart_toggle)
+        v.addWidget(c_start)
         c3 = Card("Mémoire")
         cap = QLabel(f"{config.MEM_LIMIT} Mo maximum")
         cap.setStyleSheet("color: #3DD68C; font-weight: 600;")
@@ -1565,6 +1576,19 @@ class Settings(QMainWindow):
         save_cfg(self.cfg)
         if then:
             then()
+
+    def set_lang(self, value):
+        """« auto »: la langue de Windows, que Ruby continuera de suivre; sinon la langue choisie, que plus rien ne change."""
+        self.cfg["lang_auto"] = value == "auto"
+        self.cfg["lang"] = config.os_lang() if value == "auto" else value
+        save_cfg(self.cfg)
+        self.refresh_voices()
+
+    def set_autostart(self, on):
+        try:
+            config.set_autostart(on)
+        except OSError as e:
+            self.toast(f"Impossible de changer le démarrage de Windows: {e}", error=True)
 
     def refresh_voices(self):
         vs = VOICES[self.cfg["engine"]][self.cfg["lang"]]

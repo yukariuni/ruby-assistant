@@ -1,4 +1,5 @@
 """Configuration partagée par le moteur (engine.py) et les réglages (settings.py): config.json + textes."""
+import ctypes
 import json
 import os
 import subprocess
@@ -54,11 +55,72 @@ VOICES = {
 MEM_LIMIT = 500
 WHISPER_SIZES = ("base", "small")  # « medium » a besoin de ≈800 Mo: au-dessus du plafond, donc plus proposé
 CACHE = ROOT / "cache" / "tts"  # phrases déjà dites (voir tts.py)
-DEFAULT = dict(lang="Français", engine=SUPERTONIC, voice="F1", speed=1.0, volume=0.35, glow=True, tts_steps=5,
+DEFAULT = dict(lang="Français", lang_auto=True, engine=SUPERTONIC, voice="F1", speed=1.0, volume=0.35, glow=True, tts_steps=5,
                mic="", speaker="", threshold=0.85, words="hi;hey", synced="",  # synced: mots utilisés au dernier Sync voice
                whisper="small",  # base: rapide (≈300 Mo au pic), small: plus précis (≈430 Mo au pic)
                groq_key="", groq_model="openai/gpt-oss-20b",  # la clé est stockée en clair dans config.json
                paths=dict(whisper="", voice="", wake=""))  # dossier d'installation de chaque modèle téléchargé; vide = emplacement par défaut (voir models.py)
+
+
+def os_lang():
+    """La langue de Ruby qui correspond à la langue d'affichage de Windows: la 1re de ses langues préférées que Ruby parle.
+
+    Aucune ne correspond: English. Détection impossible (pas Windows…): la langue par défaut."""
+    try:
+        k, n, size = ctypes.windll.kernel32, ctypes.c_ulong(), ctypes.c_ulong()
+        k.GetUserPreferredUILanguages(0x8, ctypes.byref(n), None, ctypes.byref(size))  # 0x8: noms de langues (« fr-FR »); 1er appel: taille
+        buf = ctypes.create_unicode_buffer(size.value)
+        k.GetUserPreferredUILanguages(0x8, ctypes.byref(n), buf, ctypes.byref(size))
+        wanted = [s.split("-")[0].lower() for s in buf[:size.value].split("\0") if s]
+    except Exception:
+        return DEFAULT["lang"]
+    if not wanted:
+        return DEFAULT["lang"]
+    return next((name for code in wanted for name, L in LANGS.items() if L["whisper"] == code), "English")
+
+
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"  # où Windows lit ce qu'il lance à l'ouverture de session
+APPROVED_KEY = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"  # « Désactiver » du Gestionnaire des tâches
+
+
+def startup_command():
+    """Ce que Windows lance à l'ouverture de session: l'exe, ou depuis les sources pythonw + ruby.py."""
+    if FROZEN:
+        return f'"{sys.executable}"'
+    exe = Path(sys.executable).with_name("pythonw.exe")
+    return f'"{exe if exe.exists() else sys.executable}" "{Path(__file__).parent / "ruby.py"}"'
+
+
+def autostart():
+    """True si Ruby se lance à l'ouverture de session de Windows (et que le Gestionnaire des tâches ne l'a pas désactivé)."""
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            winreg.QueryValueEx(k, "Ruby")
+    except OSError:
+        return False
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, APPROVED_KEY) as k:
+            return winreg.QueryValueEx(k, "Ruby")[0][0] % 2 == 0  # 1er octet: 02 = activé, 03 = désactivé par l'utilisateur
+    except OSError:
+        return True
+
+
+def set_autostart(on):
+    import winreg
+
+    def delete(key):
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_SET_VALUE) as k:
+                winreg.DeleteValue(k, "Ruby")
+        except FileNotFoundError:
+            pass
+    if on:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
+            winreg.SetValueEx(k, "Ruby", 0, winreg.REG_SZ, startup_command())
+        delete(APPROVED_KEY)  # un ancien « désactivé » du Gestionnaire des tâches ferait ignorer l'entrée
+    else:
+        delete(RUN_KEY)
 
 
 def launch(script):
@@ -80,13 +142,18 @@ def load_cfg():
     cfg = dict(DEFAULT)
     if CFG_FILE.exists():
         try:
-            cfg.update(json.loads(CFG_FILE.read_text("utf-8")))
+            saved = json.loads(CFG_FILE.read_text("utf-8"))
+            cfg.update(saved)
+            if "lang" in saved and "lang_auto" not in saved:
+                cfg["lang_auto"] = False  # réglages d'avant la langue automatique: la langue qu'ils contiennent reste
         except ValueError:
             pass  # fichier à moitié écrit: on garde les valeurs par défaut, la prochaine lecture sera bonne
     loaded = cfg.get("paths") if isinstance(cfg.get("paths"), dict) else {}
     cfg["paths"] = {**DEFAULT["paths"], **loaded}  # nouveau dict à chaque lecture: jamais partagé avec DEFAULT
     # anciennes configs (Kokoro, Piper) ou valeurs invalides -> retour à un choix valide
-    if cfg["lang"] not in LANGS:
+    if cfg["lang_auto"]:  # suit Windows: changer sa langue d'affichage change Ruby, sans toucher à ses réglages
+        cfg["lang"] = os_lang()
+    elif cfg["lang"] not in LANGS:
         cfg["lang"] = DEFAULT["lang"]
     cfg.pop("ram", None)  # ancien réglage (modes mémoire): supprimé, le plafond est maintenant fixe
     if cfg["whisper"] not in WHISPER_SIZES:
