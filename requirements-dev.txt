@@ -1,0 +1,3 @@
+-r requirements.txt
+pyinstaller       # compiler Ruby.exe (voir ruby.spec)
+openwakeword      # seulement pour test_wake.py: l'extracteur de wake.py doit donner les mêmes nombres que le paquet d'origine

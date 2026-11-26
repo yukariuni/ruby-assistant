@@ -1,0 +1,19 @@
+# environnement et compilation
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.lnk
+
+# tes données: JAMAIS dans git (clé Groq en clair dans config.json, ta voix, tes enregistrements)
+config.json
+status.json
+engine.lock
+engine.quit
+selftest.txt
+logs/
+voice/
+voice_samples/
+cache/
+models/

@@ -1,0 +1,2 @@
+Sons: Kenney, 'Interface Sounds' (CC0 1.0, domaine public) - https://kenney.nl/assets/interface-sounds
+ready.wav = confirmation_002, fail.wav = question_002

@@ -1,0 +1,14 @@
+PySide6-Essentials
+onnxruntime
+faster-whisper
+sounddevice
+scikit-learn
+numpy
+scipy
+supertonic
+edge-tts
+miniaudio
+rapidfuzz
+text2num
+requests
+joblib
