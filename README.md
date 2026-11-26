@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4">
-  <img alt="Python" src="https://img.shields.io/badge/python-3.12-3776AB">
-  <img alt="Memory budget" src="https://img.shields.io/badge/peak%20memory-%E2%89%A4%20500%20MB-2EA44F">
-  <img alt="Idle memory" src="https://img.shields.io/badge/idle%20memory-10%20MB-2EA44F">
-  <img alt="Speech" src="https://img.shields.io/badge/speech-100%25%20on--device-7B61FF">
+  <img alt="Platform: Windows 10 | 11" src="assets/badges/platform.svg">
+  <img alt="Python 3.12" src="assets/badges/python.svg">
+  <img alt="Peak memory: at most 500 MB" src="assets/badges/memory.svg">
+  <img alt="Idle memory: 10 MB" src="assets/badges/idle.svg">
+  <img alt="Speech: on-device" src="assets/badges/speech.svg">
 </p>
 
 ## Overview
