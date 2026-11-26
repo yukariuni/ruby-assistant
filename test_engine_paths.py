@@ -206,6 +206,9 @@ def born(kind, obj):
     weakref.finalize(obj, died)
 
 
+heard = [" ouvre Discord "]  # ce que le faux Whisper « entend »; "" = rien d'intelligible
+
+
 class Whisper3:
     def __init__(self, name, **k):
         born("whisper", self)
@@ -214,7 +217,7 @@ class Whisper3:
     def transcribe(self, pcm, language=None, vad_filter=None, initial_prompt=None, temperature=None):
         assert pcm.dtype == np.float32 and language == "fr"
         assert temperature == 0.0, "un seul essai: le repli en température (best_of=5) fait monter le pic à 850 Mo, plafond 500"
-        return [types.SimpleNamespace(text=" ouvre Discord ")], types.SimpleNamespace(language="fr", language_probability=0.99)
+        return [types.SimpleNamespace(text=heard[0])] if heard[0] else [], types.SimpleNamespace(language="fr", language_probability=0.99)
 
 
 class Tts3:
@@ -232,7 +235,8 @@ class Tts3:
 
 
 fw.WhisperModel, sup.TTS = Whisper3, Tts3
-audio.play, audio.play_sound, audio.device_index = lambda *a, **k: None, lambda *a: None, lambda *a: None
+sounds = []  # petits sons joués (« ready », « fail »)
+audio.play, audio.play_sound, audio.device_index = lambda *a, **k: None, lambda name, *a: sounds.append(name), lambda *a: None
 trims = []
 engine.trim = lambda: trims.append(1)  # le vidage du jeu de travail n'a lieu qu'après une libération
 shut = dict(config.load_cfg(), whisper="small", engine=config.SUPERTONIC, groq_key="", paths=dict(whisper="", voice="", wake=""))
@@ -318,6 +322,31 @@ w5.handle(pcm)
 assert log == ["whisper+", "whisper-"] and w5.reply == "Réponse en ligne.", log
 w5.cfg["engine"], w5.cfg["voice"] = config.SUPERTONIC, "F1"
 assert peak[0] == 1, f"jamais plus d'un gros modèle à la fois (vu: {peak[0]})"
+w5.release()
+# 8. pas compris: UNIQUEMENT le son d'échec, jamais une phrase (« Je ne comprends pas la demande. » était dit à voix haute)
+actions.act = lambda text, L: (True, "J'ouvre Discord.")
+w5.cfg["groq_key"] = ""
+engine.brain.ask = lambda text, L, cfg: (_ for _ in ()).throw(AssertionError("sans texte, on n'interroge même pas Groq"))
+heard[0] = ""  # Whisper n'a rien compris (bruit): ni Groq, ni règles locales, ni voix
+sounds.clear(), log.clear()
+w5.reply = "ancienne réponse"
+w5.preload()
+join_threads()
+w5.handle(pcm)
+assert sounds == ["fail"] and w5.reply == "" and log == ["whisper+", "whisper-"], (sounds, w5.reply, log)
+heard[0] = " c'est né "  # du texte, mais Groq (ou les règles) répond « pas compris »: (False, None)
+for brain_ask, key in ((lambda text, L, cfg: (False, None), "gsk_test"), (lambda text, L, cfg: None, "")):
+    engine.brain.ask = brain_ask
+    actions.act = lambda text, L: (False, None)
+    w5.cfg["groq_key"] = key
+    sounds.clear(), log.clear()
+    w5.reply = "ancienne réponse"
+    w5.preload()
+    join_threads()
+    w5.handle(pcm)
+    assert sounds == ["fail"] and w5.reply == "" and w5.loaded() == [], (key, sounds, w5.reply)
+heard[0] = " ouvre Discord "
+w5.cfg["groq_key"] = ""
 w5.release()
 
 # ---------- mémoire rendue à Windows: seulement quand plus aucun modèle n'est chargé

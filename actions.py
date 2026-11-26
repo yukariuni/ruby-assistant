@@ -190,6 +190,8 @@ MEDIA_TOOL = {"play_pause": (0xB3, 1, "playpause"), "next": (0xB0, 1, "next"), "
 
 def run_tool(name, args, L):
     """Exécute un outil demandé par le LLM (brain.py). Retourne (ok, phrase) comme act()."""
+    if name == "unclear":  # phrase inintelligible: aucune action, aucune phrase (le moteur joue le son d'échec)
+        return False, None
     try:
         if name == "open_app":
             if app := find_app(fold(args["name"])):

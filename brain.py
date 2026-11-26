@@ -7,12 +7,17 @@ import datetime
 import json
 import logging
 import os
+import re
 import time
 
 import actions
 
 LOG = logging.getLogger("ruby")
 URL = "https://api.groq.com/openai/v1/chat/completions"
+# Un « je n'ai pas compris » dit à voix haute n'apporte rien: le son d'échec suffit. Le modèle doit appeler l'outil `unclear` (voir SYSTEM),
+# mais s'il répond quand même en texte avec l'une de ces tournures (FR/EN, texte replié sans accents), on n'en dit rien non plus.
+NOT_UNDERSTOOD = re.compile(r"ne comprends? pas|n\W?ai pas (?:bien )?(?:compris|saisi)|repeter|(?:do not|don\W?t|did not|didn\W?t|can\W?t|couldn\W?t) "
+                            r"(?:really )?understand|(?:repeat|say) (?:that|it)(?: again)?|not sure what you mean")
 
 
 def _tool(name, desc, props, required):
@@ -26,15 +31,19 @@ TOOLS = [
     _tool("search_web", "Search Google in the browser. Query: only the topic, no filler words.", {"query": {"type": "string"}}, ["query"]),
     _tool("media", "Control the volume and music playback.", {"action": {"type": "string", "enum": list(actions.MEDIA_TOOL)}}, ["action"]),
     _tool("calculate", "Evaluate an arithmetic expression with + - * / **, e.g. 12*7. Use it for every calculation.", {"expression": {"type": "string"}}, ["expression"]),
+    _tool("unclear", "Call this, and say nothing, ONLY when the sentence is unintelligible (meaningless words, speech-recognition noise). "
+                     "Greetings, thanks and questions are not unclear: answer them.", {}, []),
 ]
 SYSTEM = {
     "fr": "Tu es Ruby, un assistant vocal sur Windows. La phrase vient d'une reconnaissance vocale: elle peut contenir des erreurs "
           "(noms d'applications mal écrits). Utilise les outils pour agir sur l'ordinateur, plusieurs si la phrase contient plusieurs actions. "
           "Pour une simple question, réponds directement en une phrase courte, en français, sans markdown ni emoji (ce sera lu à voix haute). "
-          "Date et heure: {now}.",
+          "Si la phrase est inintelligible (mots sans sens, bruit de reconnaissance), appelle l'outil unclear sans rien dire: "
+          "ne dis jamais que tu n'as pas compris. Date et heure: {now}.",
     "en": "You are Ruby, a voice assistant on Windows. The sentence comes from speech recognition and may contain errors (misspelled app names). "
           "Use the tools to act on the computer, several if the sentence has several actions. For a simple question, answer directly in one short "
-          "sentence, in English, with no markdown or emoji (it will be read aloud). Date and time: {now}.",
+          "sentence, in English, with no markdown or emoji (it will be read aloud). If the sentence is unintelligible (meaningless words, "
+          "recognition noise), call the tool unclear and say nothing: never say that you did not understand. Date and time: {now}.",
 }
 
 
@@ -64,6 +73,8 @@ def ask(text, L, cfg):
     calls, content = msg.get("tool_calls") or [], (msg.get("content") or "").strip()
     LOG.info("Groq: outils=%s, texte=%r", [(c["function"]["name"], c["function"]["arguments"]) for c in calls], content)
     if not calls:
+        if content and len(content.split()) <= 12 and NOT_UNDERSTOOD.search(actions.fold(content)):
+            return False, None  # pas de phrase: le moteur joue le son d'échec
         return (True, content) if content else None
     results = []
     for i, c in enumerate(calls):

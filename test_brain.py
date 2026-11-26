@@ -41,7 +41,8 @@ def ask(msg, status=200, cfg=CFG, text="peu importe"):
 assert ask({"tool_calls": [call("open_app", name="Discord")]}) == (True, "J'ouvre Discord.") and launched == ["shell:AppsFolder\\ID-DISCORD"]
 body = sent[0]["json"]
 assert body["model"] == "openai/gpt-oss-20b" and body["reasoning_effort"] == "low" and sent[0]["headers"]["Authorization"] == "Bearer gsk_test"
-assert {t["function"]["name"] for t in body["tools"]} == {"open_app", "open_browser", "search_web", "media", "calculate"}
+assert {t["function"]["name"] for t in body["tools"]} == {"open_app", "open_browser", "search_web", "media", "calculate", "unclear"}
+assert all("unclear" in v for v in brain.SYSTEM.values()), "le prompt doit dire au modèle d'appeler `unclear` plutôt que de répondre « je n'ai pas compris »"
 # plusieurs actions dans une phrase: toutes exécutées, toutes décrites
 assert ask({"tool_calls": [call("open_app", name="Spotify"), call("media", action="play_pause")]}) == (True, "J'ouvre Spotify. Lecture ou pause.")
 assert launched == ["shell:AppsFolder\\ID-SPOTIFY"] and keys == [0xB3]
@@ -54,8 +55,18 @@ assert ask({"tool_calls": [call("open_browser")]}) == (True, "J'ouvre le navigat
 assert ask({"tool_calls": [call("open_app", name="Photoshop")]}) == (False, "Je ne trouve pas Photoshop.")
 assert ask({"tool_calls": [call("media", action="explose")]}) == (False, None) and not keys  # action inconnue
 assert ask({"tool_calls": [call("format_disk")]}) == (False, None)  # outil inconnu
+# phrase inintelligible: l'outil `unclear` = aucune action et AUCUNE phrase (le moteur joue seulement le son d'échec)
+assert ask({"tool_calls": [call("unclear")]}) == (False, None) and not launched and not keys and not urls
+# le modèle répond quand même « je n'ai pas compris » en texte (c'est arrivé: « Je ne comprends pas la demande. »): pareil, rien n'est dit
+for said in ("Je ne comprends pas la demande.", "Je n'ai pas compris.", "Je n’ai pas bien compris votre demande.", "Désolé, je ne comprends pas.",
+             "Pouvez-vous répéter ?", "I didn't understand that.", "Sorry, I don’t understand.", "Could you repeat that?", "I'm not sure what you mean."):
+    assert ask({"content": said}) == (False, None), said
 # réponse directe (question)
 assert ask({"content": " Paris. "}) == (True, "Paris.")
+for said in ("D'accord.", "De rien.", "Il est quatorze heures trente."):
+    assert ask({"content": said}) == (True, said), said
+long = "Le ciel est bleu à cause de la diffusion de Rayleigh, et si tu ne comprends pas ce terme, je peux te l'expliquer plus simplement si tu veux."
+assert ask({"content": long}) == (True, long), "une longue réponse qui mentionne « ne comprend pas » reste dite"
 assert ask({"content": ""}) is None  # rien d'utile: les règles locales prennent le relais
 # indisponible -> None (l'appelant retombe sur actions.act)
 assert ask({}, status=429) is None

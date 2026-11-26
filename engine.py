@@ -301,7 +301,11 @@ class Worker(threading.Thread):
         LOG.info("transcription: %r (langue %s, confiance %.2f)", text, info.language, info.language_probability)
         self.text = text
         self.release_whisper()  # AVANT Groq et la voix
-        if text and brain.api_key(self.cfg):
+        if not text:  # rien d'intelligible: ni Groq ni règles locales, seulement le son d'échec
+            self.reply = ""
+            audio.play_sound("fail", out, vol)
+            return
+        if brain.api_key(self.cfg):
             self.preload_voice()  # Groq répond par une phrase inédite: la voix se charge pendant qu'il réfléchit
         try:
             # Groq d'abord (comprend n'importe quelle phrase); sans clé ou hors-ligne: règles locales
