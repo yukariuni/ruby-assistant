@@ -1,6 +1,6 @@
-﻿; Installateur de Ruby (Inno Setup 6). Compiler: installer\build.ps1 -Version 1.0.0
-; Il emballe le dossier dist\Ruby fabriqué par PyInstaller (voir ruby.spec). Installation par utilisateur: pas besoin d'être administrateur.
-; Ce fichier est enregistré en UTF-8 AVEC BOM (sinon Inno Setup lit les accents de travers).
+﻿; Ruby Assistant installer (Inno Setup 6). Build it with: installer\build.ps1 -Version 1.0.0
+; It packages the dist\Ruby folder produced by PyInstaller (see ruby.spec). Per-user install: no administrator rights needed.
+; Keep this file saved as UTF-8 WITH a BOM, otherwise Inno Setup misreads the accented characters.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"
@@ -21,7 +21,7 @@ UninstallDisplayIcon={app}\Ruby.exe
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; la langue de l'assistant suit celle de Windows (English si Windows n'est ni en anglais ni en français)
+; the wizard language follows Windows (English when Windows is neither English nor French)
 ShowLanguageDialog=auto
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -36,13 +36,13 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 english.StartupGroup=Startup
 french.StartupGroup=Démarrage
 english.StartWithWindows=Start Ruby when I sign in to Windows
-french.StartWithWindows=Lancer Ruby à l'ouverture de ma session Windows
+french.StartWithWindows=Lancer Ruby à l'ouverture de la session Windows
 english.SettingsShortcut=Ruby settings
 french.SettingsShortcut=Réglages de Ruby
 english.LaunchRuby=Launch Ruby
 french.LaunchRuby=Lancer Ruby
-english.OpenSettings=Open Ruby settings (to teach it your voice)
-french.OpenSettings=Ouvrir les réglages de Ruby (pour lui apprendre ta voix)
+english.OpenSettings=Open Ruby settings
+french.OpenSettings=Ouvrir les réglages de Ruby
 
 [Tasks]
 Name: "startup"; Description: "{cm:StartWithWindows}"; GroupDescription: "{cm:StartupGroup}"; Flags: unchecked
@@ -57,9 +57,9 @@ Name: "{autoprograms}\{cm:SettingsShortcut}"; Filename: "{app}\Ruby.exe"; Parame
 Name: "{autodesktop}\Ruby"; Filename: "{app}\Ruby.exe"; Tasks: desktopicon
 
 [Registry]
-; Lancer avec Windows: la même entrée que l'interrupteur « Lancer Ruby avec Windows » des réglages (config.set_autostart)
+; Start with Windows: the same entry as the "Start Ruby with Windows" switch in the settings (config.set_autostart)
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Ruby"; ValueData: """{app}\Ruby.exe"""; Flags: uninsdeletevalue; Tasks: startup
-; un ancien « Désactiver » du Gestionnaire des tâches ferait ignorer l'entrée
+; a previous "Disable" from the Task Manager would make Windows ignore the entry
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"; ValueName: "Ruby"; Flags: deletevalue; Tasks: startup
 
 [Run]
@@ -70,8 +70,8 @@ Filename: "{app}\Ruby.exe"; Parameters: "--settings"; Description: "{cm:OpenSett
 Type: filesandordirs; Name: "{app}"
 
 [Code]
-// Ruby tourne en arrière-plan: on l'arrête avant de remplacer ou de supprimer ses fichiers (--quit = arrêt propre, puis taskkill pour la fenêtre de réglages).
-// Tes réglages, ta voix apprise et tes modèles (dossier %APPDATA%\Ruby, caches Hugging Face…) ne sont JAMAIS supprimés.
+// Ruby runs in the background: stop it before replacing or removing its files (--quit is a clean stop, then taskkill for the settings window).
+// The user's settings, enrolled voice and models (%APPDATA%\Ruby, Hugging Face cache...) are NEVER deleted.
 procedure StopRuby();
 var
   Code: Integer;
@@ -98,7 +98,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    // le lancement avec Windows activé depuis les réglages de Ruby (pas depuis l'installateur) est lui aussi retiré
+    // start-with-Windows enabled from Ruby's settings (not from the installer) is removed too
     RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'Ruby');
     RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'Ruby');
   end;

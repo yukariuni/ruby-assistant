@@ -1,16 +1,16 @@
-"""Point d'entrée unique de Ruby (celui de l'exe aussi).
+"""Single entry point of Ruby (the installed application uses it too).
 
-    ruby.py               le moteur: icône dans la barre des tâches, écoute du mot d'activation
-    ruby.py --settings    la fenêtre de réglages (un processus à part: le moteur reste à ≈10 Mo)
-    ruby.py --debug       le moteur, avec les journaux dans la console et chaque commande enregistrée dans logs/
-    ruby.py --quit        demande à un Ruby qui tourne de s'arrêter (l'installateur s'en sert avant de remplacer ses fichiers)
-    ruby.py --selftest    vérifie que tout est là (bibliothèques, sons, logo) et l'écrit dans selftest.txt (dossier de données);
-                          avec --models, fait aussi tourner Whisper et la voix si tes modèles sont installés
+    ruby.py               the engine: tray icon, wake-word listening
+    ruby.py --settings    the settings window (a separate process, so the engine stays at about 10 MB)
+    ruby.py --debug       the engine, with logs in the console and every voice command saved to logs/
+    ruby.py --quit        asks a running Ruby to stop (the installer uses it before replacing files)
+    ruby.py --selftest    checks that everything is in place (libraries, sounds, logo) and writes selftest.txt (data folder);
+                          with --models, also runs Whisper and the voice if their models are installed
 """
 import os
 import sys
 
-for name in ("stdout", "stderr"):  # exe sans console (comme pythonw): une bibliothèque qui écrit dans stderr ne doit pas planter
+for name in ("stdout", "stderr"):  # no console (like pythonw): a library that writes to stderr must not crash
     if getattr(sys, name) is None:
         setattr(sys, name, open(os.devnull, "w"))
 
@@ -20,66 +20,66 @@ MODULES = ("PySide6.QtWidgets", "numpy", "sklearn.linear_model", "joblib", "onnx
 
 
 def selftest():
-    """Ce qu'un exe mal assemblé perd en silence: bibliothèques (natives comprises), fichiers livrés, certificats. 0 = tout va bien."""
+    """What a badly assembled bundle silently loses: libraries (native ones included), shipped files, certificates. 0 means all good."""
     import importlib
     import traceback
     m, lines, failed = importlib.import_module, [], []
 
-    def check(name):  # décorateur: exécute tout de suite, et un échec n'empêche jamais d'écrire le rapport
+    def check(name):  # decorator: runs at once, and a failure never prevents the report from being written
         def run(fn):
             try:
                 lines.append(f"OK     {name} {fn() or ''}".rstrip())
             except Exception:
                 failed.append(name)
-                lines.append(f"ÉCHEC  {name}: {traceback.format_exc().strip().splitlines()[-1]}")
+                lines.append(f"FAIL   {name}: {traceback.format_exc().strip().splitlines()[-1]}")
         return run
 
     for mod in MODULES:
         check("import " + mod)(lambda mod=mod: m(mod) and "")
 
-    @check("sons livrés")
+    @check("bundled sounds")
     def _():
         audio = m("audio")
-        return ", ".join(f"{n} ({len(audio.read_wav(audio.SOUNDS / (n + '.wav'))[0])} échantillons)" for n in ("ready", "fail"))
+        return ", ".join(f"{n} ({len(audio.read_wav(audio.SOUNDS / (n + '.wav'))[0])} samples)" for n in ("ready", "fail"))
 
     @check("logo")
     def _():
         assert (m("overlay").ASSETS / "icon_256.png").stat().st_size > 0
 
-    @check("CTranslate2 (Whisper) en int8")
+    @check("CTranslate2 (Whisper) int8")
     def _():
         assert "int8" in m("ctranslate2").get_supported_compute_types("cpu")
 
-    @check("détection de silence (VAD) livrée avec faster-whisper")
+    @check("voice activity detection shipped with faster-whisper")
     def _():
         assert m("faster_whisper.vad").get_vad_model()
 
-    @check("scikit-learn (apprentissage de ta voix)")
+    @check("scikit-learn (voice enrollment)")
     def _():
         return m("sklearn.linear_model").LogisticRegression().fit(m("numpy").eye(4), [0, 1, 0, 1]).coef_.shape
 
-    @check("certificats HTTPS")
+    @check("HTTPS certificates")
     def _():
         assert os.path.exists(m("certifi").where())
 
-    @check("dossier de données")
+    @check("data folder")
     def _():
         return m("config").ROOT
 
-    if "--models" in sys.argv:  # avec tes vrais modèles (s'ils sont installés): le moteur d'inférence natif tourne aussi dans l'exe
+    if "--models" in sys.argv:  # with the real models (when installed): the native inference engines run inside the bundle too
         cfg, models, np = m("config").load_cfg(), m("models"), m("numpy")
 
-        @check("Whisper (copie int8): transcrit 1 s de silence")
+        @check("Whisper (int8 copy): transcribes 1 s of silence")
         def _():
             if not models.installed(cfg, "whisper", cfg["whisper"]):
-                return "ignoré (pas installé)"
+                return "skipped (not installed)"
             w = m("faster_whisper").WhisperModel(models.whisper_source(cfg, cfg["whisper"]), device="cpu", compute_type="int8", local_files_only=True)
             list(w.transcribe(np.zeros(16000, np.float32), language="fr", temperature=0.0)[0])
 
-        @check("voix Supertonic: synthétise « Bonjour. »")
+        @check("Supertonic voice: synthesizes a short sentence")
         def _():
             if not models.installed(cfg, "voice"):
-                return "ignoré (pas installée)"
+                return "skipped (not installed)"
             tts = m("supertonic").TTS(model_dir=models.custom_or_none(cfg, "voice"), auto_download=False)
             wav, _ = tts.synthesize("Bonjour.", voice_style=tts.get_voice_style("F1"), lang="fr", total_steps=2)
             assert len(wav[0]) > 0

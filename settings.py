@@ -25,26 +25,26 @@ from memory import private_mb
 from models import fmt_size
 from overlay import make_icon
 
-DEFAULT_DEV = "(défaut système)"
+DEFAULT_DEV = "Périphérique par défaut"
 EDGE_PX = 6  # épaisseur de la zone de redimensionnement sur le bord de la fenêtre
 ICON = "Segoe MDL2 Assets"  # icônes natives de Windows
 G = dict(home="", general="", voice="", listen="", ai="", models="", down="",
          minimize="", maximize="", restore="", close="", more="", move="", folder="",
          delete="", undo="", warn="", check="")
 STATES = {  # état du moteur -> (titre, couleur)
-    "stopped": ("Ruby est arrêtée", "#5B6478"), "starting": ("Démarrage…", "#FFB347"), "downloading": ("Téléchargement…", "#FFB347"),
-    "needs_sync": ("Apprends-moi ta voix", "#FFB347"), "listening": ("À l'écoute", "#3DD68C"),
-    "recording": ("Je t'écoute…", "#FF4D8D"), "thinking": ("Je réfléchis…", "#3DA9FF"),
-    "speaking": ("Je réponds…", "#33E0C8"), "error": ("Erreur", "#FF5C6C"),
+    "stopped": ("Arrêté", "#5B6478"), "starting": ("Démarrage…", "#FFB347"), "downloading": ("Préparation…", "#FFB347"),
+    "needs_sync": ("Configuration requise", "#FFB347"), "listening": ("En attente", "#3DD68C"),
+    "recording": ("À l'écoute", "#FF4D8D"), "thinking": ("Analyse…", "#3DA9FF"),
+    "speaking": ("Réponse…", "#33E0C8"), "error": ("Erreur", "#FF5C6C"),
 }
-WHISPER = [("Rapide · base (≈300 Mo en mémoire)", "base"), ("Précis · small (≈430 Mo en mémoire)", "small")]  # « medium » dépasserait le plafond de 500 Mo
-GROQ_MODELS = [("GPT-OSS 20B · rapide", "openai/gpt-oss-20b"), ("GPT-OSS 120B · plus précis", "openai/gpt-oss-120b")]
+WHISPER = [("Base · rapide (pic ≈300 Mo)", "base"), ("Small · précis (pic ≈430 Mo)", "small")]  # « medium » dépasserait le plafond de 500 Mo
+GROQ_MODELS = [("GPT-OSS 20B · rapide", "openai/gpt-oss-20b"), ("GPT-OSS 120B · précis", "openai/gpt-oss-120b")]
 DELETE_NOTE = dict(
-    whisper="Il sera retéléchargé automatiquement si Ruby en a de nouveau besoin.",
-    voice="Elle sera retéléchargée automatiquement si tu utilises la voix locale.",
-    wake="Ces petits fichiers seront retéléchargés automatiquement au prochain démarrage.",
-    mine="Ruby oubliera ta voix: il faudra refaire « Apprendre ma voix » avant de pouvoir l'utiliser.")
-LABEL = dict(whisper="Whisper", voice="la voix Supertonic", wake="openWakeWord")  # « Où installer … ? »
+    whisper="Le modèle sera téléchargé de nouveau si Ruby en a besoin.",
+    voice="Le modèle vocal sera téléchargé de nouveau si la voix locale est utilisée.",
+    wake="Ces fichiers seront téléchargés de nouveau au prochain démarrage.",
+    mine="Le profil vocal sera supprimé : un nouvel enregistrement sera nécessaire pour utiliser Ruby.")
+LABEL = dict(whisper="Whisper", voice="voix Supertonic", wake="openWakeWord")  # « Où installer … ? »
 DE = dict(whisper="de Whisper", voice="de la voix Supertonic", wake="d'openWakeWord")  # « Les fichiers … »
 QSS = """
 * { font-family: 'Segoe UI Variable Text', 'Segoe UI'; font-size: 13px; color: #E7E9EE; }
@@ -677,7 +677,7 @@ class Sidebar(QFrame):
         card.v.setContentsMargins(14, 12, 14, 14)
         card.v.setSpacing(10)
         row = QHBoxLayout()
-        self.dot, self.state_lbl = StatusDot(), QLabel("Ruby est arrêtée")
+        self.dot, self.state_lbl = StatusDot(), QLabel("Arrêté")
         self.state_lbl.setObjectName("rowTitle")
         row.addWidget(self.dot)
         row.addWidget(self.state_lbl, 1)
@@ -852,9 +852,9 @@ class MoveDialog(Frameless):
     def __init__(self, parent, label, pairs):
         super().__init__(parent, "Déplacement", 500)
         self.pairs, self.stop, self.error, self.leftovers, self.worker = pairs, False, "", [], None
-        title = QLabel(f"Déplacement {label}")
+        title = QLabel(f"Déplacement des fichiers {label}")
         title.setStyleSheet("font-size: 18px; font-weight: 700;")
-        sub = QLabel("Copie, vérification, puis suppression de l'ancien emplacement. Si tu annules, rien n'est perdu.")
+        sub = QLabel("Copie, vérification, puis suppression de l'ancien emplacement. L'annulation est sans perte de données.")
         sub.setObjectName("rowDesc")
         sub.setWordWrap(True)
         self.bar = SmoothBar()
@@ -916,18 +916,18 @@ class SyncDialog(Frameless):
     failed = Signal(str)
 
     def __init__(self, parent, cfg):
-        super().__init__(parent, "Apprendre ma voix", 520, 600)
+        super().__init__(parent, "Profil vocal", 520, 600)
         self.cfg, self.cancel = cfg, False
         self.body.setContentsMargins(40, 26, 40, 28)
         v = self.body
         self.meter = LevelMeter()
         v.addWidget(self.meter, 0, Qt.AlignHCenter)
         v.addSpacing(10)
-        self.title = QLabel("Prêt ?")
+        self.title = QLabel("Enregistrement de la voix")
         self.title.setStyleSheet("font-size: 20px; font-weight: 700;")
         self.title.setAlignment(Qt.AlignCenter)
         self.title.setWordWrap(True)
-        self.sub = QLabel("Je vais te demander quelques phrases. Parle quand tu entends le petit son.")
+        self.sub = QLabel("Durée : environ une minute. Prononcez chaque phrase après le signal sonore.")
         self.sub.setObjectName("pageSub")
         self.sub.setAlignment(Qt.AlignCenter)
         self.sub.setWordWrap(True)
@@ -944,7 +944,7 @@ class SyncDialog(Frameless):
         self.step.connect(self._step)
         self.level.connect(self.meter.set_level)
         self.finished_ok.connect(self._done)
-        self.failed.connect(lambda m: (self.title.setText("Oups"), self.sub.setText(m), self.btn.setText("Fermer"),
+        self.failed.connect(lambda m: (self.title.setText("Échec de l'enregistrement"), self.sub.setText(m), self.btn.setText("Fermer"),
                                        self.btn.clicked.disconnect(), self.btn.clicked.connect(self.reject)))
         self.decay = QTimer(self, interval=60, timeout=lambda: self.meter.set_level(0))
         self.decay.start()
@@ -958,9 +958,9 @@ class SyncDialog(Frameless):
 
     def _done(self):
         self.bar.glide(self.bar.maximum())
-        self.title.setText("C'est fait ✔")
+        self.title.setText("Enregistrement terminé")
         fade_in(self.title, 260)
-        self.sub.setText("Ruby connaît ta voix. Lance-la et dis ton mot d'activation. Si elle rate ou se déclenche trop, ajuste le seuil.")
+        self.sub.setText("Le profil vocal est enregistré. Si la détection est trop sensible ou insuffisante, ajustez le seuil dans la page Écoute.")
         self.btn.setText("Terminer")
         self.btn.clicked.disconnect()
         self.btn.clicked.connect(self.accept)
@@ -999,24 +999,24 @@ class SyncDialog(Frameless):
             for i, (is_pos, what, count) in enumerate(self.steps):
                 while not self.cancel:
                     if what is None:
-                        title, sub = "Reste silencieux", "J'écoute le bruit de ta pièce."
+                        title, sub = "Silence", "Mesure du bruit ambiant."
                     elif is_pos:
-                        title, sub = f"Dis « {what} »", f"Répétition {count}"
+                        title, sub = f"Dites « {what} »", f"Répétition {count}"
                     else:
-                        title, sub = f"Dis : {what}", "Une phrase au hasard, pour apprendre ce qui n'est pas mon nom."
-                    self.step.emit(title, "Prépare-toi…", i)
+                        title, sub = f"Dites : {what}", "Phrase de contrôle : elle sert à distinguer le mot d'activation du reste."
+                    self.step.emit(title, "Préparation…", i)
                     time.sleep(1.0)
                     audio.play_sound("ready", out, vol)
-                    self.step.emit(title, sub + "  —  parle maintenant", i)
+                    self.step.emit(title, sub + "  ·  parlez maintenant", i)
                     clip = self.record()
                     if not is_pos or wake.speech_end(clip):
                         break
-                    self.step.emit("Je n'ai rien entendu", "On recommence.", i)
+                    self.step.emit("Aucune voix détectée", "Nouvelle tentative.", i)
                     time.sleep(1.2)
                 if self.cancel:
                     return
                 (pos if is_pos else neg).append(clip)
-            self.step.emit("J'apprends ta voix…", "Quelques secondes.", len(self.steps))
+            self.step.emit("Entraînement du détecteur…", "Quelques secondes.", len(self.steps))
             models.ensure_wake(models.folder(self.cfg, "wake"))  # no-op si déjà là
             wake.train(pos, neg, models.custom_or_none(self.cfg, "wake")).save(config.MODEL_FILE)
             config.LEGACY_MODEL.unlink(missing_ok=True)  # l'ancien format est remplacé par ce nouvel apprentissage
@@ -1072,7 +1072,7 @@ def model_rows(cfg):
         its = models.items(cfg, kind, key)
         ok = models.installed(cfg, kind, key)
         if kind == "mine":
-            status = ("Appris", "local") if ok else ("À apprendre", "warn")
+            status = ("Enregistré", "local") if ok else ("À enregistrer", "warn")
         else:
             todo = models.WHISPER_APPROX.get(key, "") if kind == "whisper" else approx[kind]
             status = ("Installé", "local") if ok else (f"À télécharger {todo}".strip(), "warn")
@@ -1087,17 +1087,17 @@ def model_rows(cfg):
 
     groq = dict((v, l) for l, v in GROQ_MODELS).get(cfg["groq_model"], cfg["groq_model"])
     used = [row("wake", G["listen"], "Mot d'activation", "openWakeWord", pipeline=True),
-            row("mine", G["listen"], "Ta voix apprise", " · ".join(phrases(cfg["synced"])) or "Pas encore apprise"),
+            row("mine", G["listen"], "Profil vocal", " · ".join(phrases(cfg["synced"])) or "Non enregistré"),
             row("whisper", G["general"], "Reconnaissance vocale", f"Whisper {name}", key=name, pipeline=True)]
     if cloud_ai:
-        used.append(cloud(G["ai"], "Intelligence", groq, "Hébergé chez Groq, rien d'installé"))
+        used.append(cloud(G["ai"], "Intelligence", groq, "Hébergé par Groq"))
     else:
-        used.append(dict(cloud(G["ai"], "Intelligence", "Règles locales (pas de clé Groq)", "Intégré à Ruby"), where="local",
-                         status=("Intégré à Ruby", "local")))
+        used.append(dict(cloud(G["ai"], "Intelligence", "Règles locales", "Intégré"), where="local",
+                         status=("Intégré", "local")))
     if local_voice:
         used.append(row("voice", G["voice"], "Voix", f"Supertonic · {cfg['voice']}", pipeline=True))
     else:
-        used.append(cloud(G["voice"], "Voix", f"Edge · {cfg['voice']}", "Hébergé chez Microsoft, rien d'installé"))
+        used.append(cloud(G["voice"], "Voix", f"Edge · {cfg['voice']}", "Hébergé par Microsoft"))
     others = [row("whisper", G["general"], "Reconnaissance vocale", f"Whisper {k}", key=k, in_use=False)
               for k in models.whisper_dirs(cfg) if k != name]
     if not local_voice and models.installed(cfg, "voice"):
@@ -1233,7 +1233,8 @@ class Settings(QMainWindow):
         s.setObjectName("pageSub")
         s.setWordWrap(True)
         v.addWidget(t)
-        v.addWidget(s)
+        if sub:
+            v.addWidget(s)
         v.addSpacing(6)
         wrap = QWidget()
         wrap.setObjectName("pageBody")
@@ -1293,7 +1294,7 @@ class Settings(QMainWindow):
                 lbl.setToolTip(str(p))
 
     def page_home(self):
-        sc, v = self.page("Accueil", "Ce que Ruby fait en ce moment.")
+        sc, v = self.page("Accueil", "")
         hero = Card()
         hero.v.setContentsMargins(26, 16, 26, 16)
         h = QHBoxLayout()
@@ -1302,7 +1303,7 @@ class Settings(QMainWindow):
         h.addSpacing(18)
         col = QVBoxLayout()
         col.addStretch()
-        self.home_state = QLabel("Ruby est arrêtée")
+        self.home_state = QLabel("Arrêté")
         self.home_state.setStyleSheet("font-size: 26px; font-weight: 700;")
         self.tip = QLabel()
         self.tip.setObjectName("rowDesc")
@@ -1318,19 +1319,19 @@ class Settings(QMainWindow):
         h.addLayout(col, 1)
         hero.v.addLayout(h)
         v.addWidget(hero)
-        lbl = QLabel("PIPELINE")
+        lbl = QLabel("COMPOSANTS")
         lbl.setObjectName("cardTitle")
         v.addWidget(lbl)
         self.chips = QGridLayout()
         self.chips.setSpacing(12)
         v.addLayout(self.chips)
-        c = Card("Dernière conversation")
+        c = Card("Dernière commande")
         c.v.setContentsMargins(22, 18, 22, 18)
         c.v.setSpacing(10)
         self.home_text, self.home_reply = QLabel(), QLabel()
         self.home_text.setObjectName("bubbleYou")
         self.home_reply.setObjectName("bubbleRuby")
-        self.home_none = QLabel("Aucune commande pour l'instant. Dis ton mot d'activation !")
+        self.home_none = QLabel("Aucune commande enregistrée.")
         self.home_none.setObjectName("rowDesc")
         for lb in (self.home_text, self.home_reply):
             lb.setWordWrap(True)
@@ -1344,14 +1345,13 @@ class Settings(QMainWindow):
         return sc
 
     def page_general(self):
-        sc, v = self.page("Général", "Langue, périphériques et apparence.")
-        c = Card("Écoute")
+        sc, v = self.page("Général", "")
+        c = Card("Assistant")
         self.words = QLineEdit(self.cfg["words"])
         self.words.setFixedWidth(270)
         self.words.setPlaceholderText("hi;hey")
         self.words.textChanged.connect(lambda t: self.set("words", t.strip()))
-        c.row("Mots d'activation", "Séparés par « ; ». Chaque mot est suivi de « Ruby » (hi;hey → « Hi Ruby », « Hey Ruby »). "
-              "Refais « Apprendre ma voix » après un changement.", self.words)
+        c.row("Mots d'activation", "Séparés par « ; », chacun suivi de « Ruby ». Un nouvel enregistrement de la voix est nécessaire après modification.", self.words)
         self.lang_combo = Combo()
         self.lang_combo.setFixedWidth(270)
         self.lang_combo.addItem(f"Automatique · Windows ({config.os_lang()})", "auto")
@@ -1359,41 +1359,41 @@ class Settings(QMainWindow):
             self.lang_combo.addItem(n, n)
         self.lang_combo.setCurrentIndex(self.lang_combo.findData("auto" if self.cfg["lang_auto"] else self.cfg["lang"]))
         self.lang_combo.currentIndexChanged.connect(lambda i: self.set_lang(self.lang_combo.itemData(i)))
-        c.row("Langue", "Langue de la reconnaissance vocale et des réponses. « Automatique » suit la langue d'affichage de Windows.", self.lang_combo)
-        c.row("Micro", "", self.combo("mic", self.devices("input")))
-        c.row("Haut-parleurs", "", self.combo("speaker", self.devices("output")))
+        c.row("Langue", "Reconnaissance vocale et réponses. « Automatique » suit la langue de Windows.", self.lang_combo)
         v.addWidget(c)
-        c2 = Card("Son et apparence")
-        c2.row("Volume de Ruby", "Sons et voix.", self.slider("volume", 0.05, 1.0, lambda x: f"{round(x * 100)} %"))
-        c2.row("Lueur d'écran", "Un halo lumineux autour de l'écran quand Ruby t'écoute.", Toggle(self.cfg["glow"], lambda on: self.set("glow", on)))
+        c2 = Card("Audio")
+        c2.row("Micro", "", self.combo("mic", self.devices("input")))
+        c2.row("Haut-parleurs", "", self.combo("speaker", self.devices("output")))
+        c2.row("Volume", "", self.slider("volume", 0.05, 1.0, lambda x: f"{round(x * 100)} %"))
         v.addWidget(c2)
+        c_view = Card("Affichage")
+        c_view.row("Lueur d'écran", "Halo lumineux autour de l'écran pendant l'écoute.", Toggle(self.cfg["glow"], lambda on: self.set("glow", on)))
+        v.addWidget(c_view)
         c_start = Card("Démarrage")
         self.autostart_toggle = Toggle(config.autostart(), self.set_autostart)
-        c_start.row("Lancer Ruby avec Windows", "Ruby démarre tout seul quand tu ouvres ta session, en arrière-plan (≈10 Mo), prête à t'écouter.",
+        c_start.row("Lancer Ruby avec Windows", "Démarre Ruby en arrière-plan à l'ouverture de la session.",
                     self.autostart_toggle)
         v.addWidget(c_start)
         c3 = Card("Mémoire")
         cap = QLabel(f"{config.MEM_LIMIT} Mo maximum")
         cap.setStyleSheet("color: #3DD68C; font-weight: 600;")
-        c3.row("Plafond", "Au repos Ruby n'utilise que ≈10 Mo. Quand tu lui parles, Whisper se charge pendant ta phrase puis est libéré, "
-               "et seulement après la voix: jamais les deux ensemble. Les phrases déjà dites restent sur le disque et sont rejouées "
-               "sans recharger la voix.", cap)
+        c3.row("Plafond", "Whisper et la voix ne sont jamais chargés simultanément. Les réponses déjà générées sont conservées sur le disque.", cap)
         v.addWidget(c3)
         v.addStretch()
         return sc
 
     def page_voice(self):
-        sc, v = self.page("Voix", "Comment Ruby te parle.")
+        sc, v = self.page("Voix", "")
         c = Card("Synthèse vocale")
-        c.row("Moteur", "Supertonic tourne sur ton PC (rapide, sans Internet). Edge utilise les serveurs de Microsoft: plus de délai, Internet requis.",
+        c.row("Moteur", "Supertonic : synthèse locale, sans connexion. Edge : service Microsoft en ligne.",
               self.combo("engine", [(n, n) for n in VOICES], self.refresh_voices))
         self.voice_combo = self.combo("voice", [(n, n) for n in VOICES[self.cfg["engine"]][self.cfg["lang"]]])
         c.row("Voix", "", self.voice_combo)
         c.row("Vitesse", "", self.slider("speed", 0.7, 1.4, lambda x: f"×{x:.2f}"))
         self.test_btn = GlowButton("▶  Écouter", "ghost")
         self.test_btn.clicked.connect(self.test_voice)
-        c.row("Tester", "Lit une phrase avec les réglages actuels.", self.test_btn)
-        self.folder_row(c, "voice", "Dossier d'installation", "Où est installée la voix Supertonic (≈385 Mo, téléchargée une seule fois).")
+        c.row("Aperçu", "", self.test_btn)
+        self.folder_row(c, "voice", "Dossier d'installation", "Emplacement du modèle vocal (≈385 Mo).")
         v.addWidget(c)
         self.voice_err = QLabel("")
         self.voice_err.setStyleSheet("color: #FF8A98;")
@@ -1403,51 +1403,49 @@ class Settings(QMainWindow):
         return sc
 
     def page_listen(self):
-        sc, v = self.page("Écoute", "Ruby apprend ta voix pour ne répondre qu'à toi.")
-        c = Card("Ma voix")
+        sc, v = self.page("Écoute", "")
+        c = Card("Profil vocal")
         self.sync_lbl = QLabel()
-        self.sync_btn = GlowButton("Apprendre ma voix", "primary")
+        self.sync_btn = GlowButton("Enregistrer ma voix", "primary")
         self.sync_btn.clicked.connect(self.sync)
-        c.row("Mots appris", "", self.sync_lbl)
-        c.row("Apprentissage", "Environ 1 minute: tu dis tes mots d'activation, quelques phrases au hasard, puis le silence de la pièce.", self.sync_btn)
+        c.row("Mots enregistrés", "", self.sync_lbl)
+        c.row("Enregistrement", "Durée : environ une minute. Le détecteur est entraîné sur votre voix et votre environnement sonore.", self.sync_btn)
         v.addWidget(c)
         c2 = Card("Détection")
-        c2.row("Seuil", "Plus haut = plus strict (moins de faux déclenchements). Plus bas = plus sensible.",
+        c2.row("Seuil", "Une valeur élevée réduit les faux déclenchements ; une valeur basse augmente la sensibilité.",
                self.slider("threshold", 0.5, 0.99, lambda x: f"{x:.2f}"))
         self.meter = SmoothBar()
         self.meter.setRange(0, 100)
         self.meter.setFixedWidth(270)
-        c2.row("Détection en direct", "Dis ton mot d'activation: la barre doit dépasser le seuil.", self.meter)
+        c2.row("Niveau en direct", "Confiance du détecteur en temps réel ; l'activation a lieu au-dessus du seuil.", self.meter)
         v.addWidget(c2)
         c3 = Card("Reconnaissance vocale")
-        c3.row("Modèle Whisper", "Il tourne sur ton PC et se télécharge une seule fois. "
-               "Plus il est gros, plus il comprend bien… et plus il est lent. Une copie optimisée (int8) est créée à côté, une seule fois: "
-               "elle évite un pic de mémoire de 680 Mo au chargement.", self.combo("whisper", WHISPER), ("Sur ton PC", "local"))
-        self.folder_row(c3, "whisper", "Dossier d'installation", "Où sont installés les modèles Whisper (≈480 Mo + ≈240 Mo de copie optimisée pour small).")
+        c3.row("Modèle Whisper", "Transcription exécutée localement. Un modèle plus grand améliore la précision et augmente la latence.",
+               self.combo("whisper", WHISPER), ("Local", "local"))
+        self.folder_row(c3, "whisper", "Dossier d'installation", "Emplacement des modèles Whisper.")
         v.addWidget(c3)
         v.addStretch()
         return sc
 
     def page_ai(self):
-        sc, v = self.page("Intelligence", "Groq comprend n'importe quelle phrase. Sans clé, Ruby utilise ses règles locales.")
+        sc, v = self.page("Intelligence", "Interprétation des commandes. Sans clé API, Ruby applique ses règles locales.")
         c = Card("Groq")
         self.key = QLineEdit(self.cfg["groq_key"])
         self.key.setEchoMode(QLineEdit.Password)
         self.key.setFixedWidth(270)
         self.key.setPlaceholderText("gsk_…")
         self.key.textChanged.connect(lambda t: self.set("groq_key", t.strip()))
-        c.row("Clé API", "Gratuite sur console.groq.com. Stockée en clair dans config.json.", self.key)
-        c.row("Modèle", "Ces modèles tournent sur les serveurs de Groq: rien n'est installé sur ton PC. "
-              "Le 20B répond plus vite, le 120B comprend mieux les phrases compliquées.",
-              self.combo("groq_model", GROQ_MODELS), ("Cloud · Groq", "cloud"))
+        c.row("Clé API", "Clé gratuite sur console.groq.com, enregistrée en clair dans config.json.", self.key)
+        c.row("Modèle", "Modèles hébergés par Groq. 20B : plus rapide. 120B : meilleure compréhension des demandes complexes.",
+              self.combo("groq_model", GROQ_MODELS), ("Cloud", "cloud"))
         b = GlowButton("Tester la clé", "ghost")
         b.clicked.connect(self.test_groq)
         c.row("Vérification", "", b)
         v.addWidget(c)
         self.groq_lbl = QLabel("")
         v.addWidget(self.groq_lbl)
-        note = QLabel("Avec Groq, chaque phrase transcrite (le texte, pas l'audio) est envoyée à leurs serveurs. "
-                      "Si Groq est injoignable ou la clé vide, Ruby retombe sur ses règles locales.")
+        note = QLabel("Avec Groq, le texte transcrit (jamais l'audio) est transmis aux serveurs de Groq. "
+                      "En cas d'indisponibilité ou sans clé, les règles locales prennent le relais.")
         note.setObjectName("rowDesc")
         note.setWordWrap(True)
         v.addWidget(note)
@@ -1455,7 +1453,7 @@ class Settings(QMainWindow):
         return sc
 
     def page_models(self):
-        sc, v = self.page("Modèles", "Tout ce que Ruby télécharge et utilise. Choisis où chaque modèle est installé, ou supprime ceux dont tu n'as plus besoin.")
+        sc, v = self.page("Modèles", "Modèles utilisés par Ruby : emplacement, taille et suppression.")
         self.models_box = QVBoxLayout()  # reconstruit à chaque affichage de la page
         self.models_box.setSpacing(16)
         v.addLayout(self.models_box)
@@ -1506,11 +1504,11 @@ class Settings(QMainWindow):
         right.setSpacing(6)
         badges = QHBoxLayout()
         badges.addStretch()
-        badges.addWidget(Badge("Sur ton PC" if r["where"] == "local" else "Cloud", r["where"]))
+        badges.addWidget(Badge("Local" if r["where"] == "local" else "Cloud", r["where"]))
         badges.addWidget(Badge(*r["status"]))
         right.addLayout(badges)
         if r["size"]:
-            sz = QLabel(f"{fmt_size(r['size'])} sur le disque")
+            sz = QLabel(fmt_size(r["size"]))
             sz.setObjectName("rowDesc")
             right.addWidget(sz, 0, Qt.AlignRight)
         h.addLayout(right)
@@ -1534,7 +1532,7 @@ class Settings(QMainWindow):
         m.setObjectName("rowDesc")
         m.setWordWrap(True)
         chip.v.addWidget(m)
-        chip.v.addWidget(Badge("Sur ton PC" if r["where"] == "local" else "Cloud", r["where"]), 0, Qt.AlignLeft)
+        chip.v.addWidget(Badge("Local" if r["where"] == "local" else "Cloud", r["where"]), 0, Qt.AlignLeft)
         return chip
 
     def _disk_text(self, v):
@@ -1547,19 +1545,19 @@ class Settings(QMainWindow):
         used, others, total = model_rows(self.cfg)
         self.clear(self.chips)
         self.clear(self.models_box)
-        card = Card("Utilisés actuellement")
+        card = Card("Modèles actifs")
         for r in used:
             card.add(self.model_row(r))
         self.models_box.addWidget(card)
         if others:
-            c2 = Card("Autres modèles sur ton PC")
+            c2 = Card("Autres modèles installés")
             for r in others:
                 c2.add(self.model_row(r))
             self.models_box.addWidget(c2)
         c3 = Card("Espace disque")
         self.disk_lbl = QLabel(fmt_size(total))
         self.disk_lbl.setStyleSheet("font-size: 16px; font-weight: 600;")
-        c3.row("Modèles sur ton PC", "Aucune limite: Ruby n'impose aucun quota. Chaque modèle se gère avec son bouton « Gérer ».", self.disk_lbl)
+        c3.row("Espace utilisé", "", self.disk_lbl)
         self.models_box.addWidget(c3)
         run(self.disk_anim, self._disk, total)
         self._disk = total
@@ -1588,7 +1586,7 @@ class Settings(QMainWindow):
         try:
             config.set_autostart(on)
         except OSError as e:
-            self.toast(f"Impossible de changer le démarrage de Windows: {e}", error=True)
+            self.toast(f"Modification du démarrage impossible : {e}", error=True)
 
     def refresh_voices(self):
         vs = VOICES[self.cfg["engine"]][self.cfg["lang"]]
@@ -1641,17 +1639,17 @@ class Settings(QMainWindow):
         self.home_none.setVisible(not heard and not said)
         mem, loaded = (st or {}).get("mem"), (st or {}).get("loaded") or []
         own = private_mb()  # cette fenêtre compte aussi dans le plafond
-        self.mem_lbl.setText(f"Mémoire de Ruby : {mem + own} Mo sur {config.MEM_LIMIT} (moteur {mem}, réglages {own})  ·  "
-                             + ("en mémoire : " + ", ".join(loaded) if loaded else "aucun modèle chargé")
+        self.mem_lbl.setText(f"Mémoire : {mem + own} Mo sur {config.MEM_LIMIT} Mo (moteur {mem}, interface {own})  ·  "
+                             + ("Modèles chargés : " + ", ".join(loaded) if loaded else "Aucun modèle chargé")
                              if st and mem else "")
         self.meter.glide(round((st or {}).get("score", 0.0) * 100))
         ph = phrases(self.cfg["synced"])
         ok = ph and ph == phrases(self.cfg["words"]) and config.MODEL_FILE.exists()
         detail = (st or {}).get("detail") or ""
-        self.tip.setText(detail and f"Préparation en cours: {detail}. Ça ne se fait qu'une fois." or
-                         f"Dis « {' » ou « '.join(ph or phrases(self.cfg['words']))} », attends le petit son, puis parle.\n"
-                         "Exemples: « Ouvre Discord », « Cherche des recettes de pâtes », « Combien font 12 fois 7 ? », « Mets pause ».")
-        self.sync_lbl.setText(" · ".join(ph) if ok else "Pas encore appris (ou mots changés)")
+        self.tip.setText(detail and f"{detail}.\nCette opération n'est effectuée qu'une seule fois." or
+                         f"Dites « {' » ou « '.join(ph or phrases(self.cfg['words']))} », attendez le signal sonore, puis formulez votre demande.\n"
+                         "Exemples : « Ouvre Discord », « Cherche une recette de pâtes », « Combien font 12 fois 7 ? », « Mets pause ».")
+        self.sync_lbl.setText(" · ".join(ph) if ok else "À enregistrer")
         self.sync_lbl.setStyleSheet(f"color: {'#3DD68C' if ok else '#FFB347'}; font-weight: 600;")
 
     # ---------- moteur
@@ -1686,7 +1684,7 @@ class Settings(QMainWindow):
     # ---------- gérer un modèle
     def delete_model(self, r):
         size = models.size(r["items"])
-        if Confirm.ask(self, f"Supprimer {r['model']} ?", f"{fmt_size(size)} seront libérés.\n\n{DELETE_NOTE[r['kind']]}",
+        if Confirm.ask(self, f"Supprimer {r['model']} ?", f"Cette action libère {fmt_size(size)}.\n\n{DELETE_NOTE[r['kind']]}",
                        [("Annuler", "ghost"), ("Supprimer", "dangerSolid")]) != 1:
             return
         was = self.stop_engine()
@@ -1696,12 +1694,12 @@ class Settings(QMainWindow):
             if r["kind"] == "mine":
                 self.set("synced", "")
         except OSError as e:
-            self.toast(f"Impossible de supprimer: {e}", error=True)
+            self.toast(f"Suppression impossible : {e}", error=True)
             self.refresh_models(animate=True)
             self.restart_engine(was)
             return
         stays_off = was and r["in_use"]  # Ruby en avait besoin: la relancer maintenant le retélécharge aussitôt, on laisse l'utilisateur décider
-        self.toast(f"{r['model']} supprimé · {fmt_size(size)} libérés" + (" · Ruby est arrêtée" if stays_off else ""))
+        self.toast(f"{r['model']} supprimé · {fmt_size(size)} libérés" + (" · Ruby arrêté" if stays_off else ""))
         self.refresh_models(animate=True)
         self.restart_engine(was and not stays_off)
 
@@ -1711,18 +1709,18 @@ class Settings(QMainWindow):
         if default:
             new = models.default_folder(kind)
         else:
-            picked = QFileDialog.getExistingDirectory(self, f"Choisis où installer {label}", str(cur.parent if cur.parent.exists() else Path.home()))
+            picked = QFileDialog.getExistingDirectory(self, f"Dossier d'installation · {label}", str(cur.parent if cur.parent.exists() else Path.home()))
             if not picked:
                 return
             new = Path(picked) / models.SUBDIR[kind]  # sous-dossier dédié: déplacer ou supprimer ne touchera qu'aux modèles de Ruby
         if new == cur:
-            self.toast("C'est déjà le dossier actuel")
+            self.toast("Dossier déjà sélectionné")
             return
         pairs = models.relocation(self.cfg, kind, new)
         move = False
         if pairs:
-            c = Confirm.ask(self, "Déplacer les fichiers déjà téléchargés ?",
-                            f"Les fichiers {DE[kind]} sont déjà téléchargés ({fmt_size(models.size([a for a, _ in pairs]))}).\n\nNouveau dossier :\n{new}",
+            c = Confirm.ask(self, "Déplacer les fichiers existants ?",
+                            f"Les fichiers {DE[kind]} ({fmt_size(models.size([a for a, _ in pairs]))}) se trouvent dans l'ancien dossier.\n\nNouveau dossier :\n{new}",
                             [("Annuler", "ghost"), ("Laisser sur place", "ghost"), ("Déplacer", "primary")], icon=G["folder"])
             if c in (-1, 0):
                 return
@@ -1732,11 +1730,11 @@ class Settings(QMainWindow):
         if move:
             d = MoveDialog(self, DE[kind], pairs)
             if d.exec() != QDialog.Accepted:
-                self.toast(d.error and f"Déplacement impossible: {d.error}" or "Déplacement annulé: rien n'a changé", error=bool(d.error))
+                self.toast(d.error and f"Déplacement impossible : {d.error}" or "Déplacement annulé · aucune modification", error=bool(d.error))
                 self.restart_engine(was)
                 return
             if d.leftovers:
-                self.toast("Copié, mais l'ancien emplacement n'a pas pu être nettoyé (fichiers utilisés)", error=True)
+                self.toast("Copie terminée · l'ancien dossier n'a pas pu être supprimé (fichiers en cours d'utilisation)", error=True)
         self.cfg["paths"][kind] = "" if default else str(new)
         save_cfg(self.cfg)
         self.refresh_models(animate=True)
@@ -1745,7 +1743,7 @@ class Settings(QMainWindow):
 
     def test_voice(self):
         if (self.read_status() or {}).get("loaded"):  # le moteur utilise Whisper ou la voix: les charger aussi ici dépasserait le plafond de mémoire
-            self.voice_err.setText("Ruby est en train de traiter une commande: réessaie dans un instant.")
+            self.voice_err.setText("Commande en cours de traitement. Réessayez dans un instant.")
             return
         self.test_btn.setEnabled(False)
         self.voice_err.setText("")
@@ -1757,7 +1755,7 @@ class Settings(QMainWindow):
                 sp = self.speaker = self.speaker or tts.Speaker()
                 sp.say(LANGS[self.cfg["lang"]]["hello"], dict(self.cfg))
             except Exception as e:
-                err = f"Erreur: {e}"
+                err = f"Erreur : {e}"
             finally:
                 if sp:
                     sp.unload()  # ≈415 Mo: la phrase reste sur disque, la rejouer ne recharge rien
@@ -1773,15 +1771,15 @@ class Settings(QMainWindow):
             import requests  # ici seulement: la fenêtre n'en a pas besoin le reste du temps
             try:
                 r = requests.get("https://api.groq.com/openai/v1/models", headers={"Authorization": f"Bearer {key}"}, timeout=8)
-                msg = "✓ Clé valide" if r.ok else f"✗ Refusée (HTTP {r.status_code})"
+                msg = "✓ Clé valide" if r.ok else f"✗ Clé refusée (HTTP {r.status_code})"
             except requests.RequestException as e:
-                msg = f"✗ Injoignable ({type(e).__name__})"
-            self.groq_result.emit(msg if key else "✗ Aucune clé")
+                msg = f"✗ Service injoignable ({type(e).__name__})"
+            self.groq_result.emit(msg if key else "✗ Aucune clé renseignée")
         threading.Thread(target=go, daemon=True).start()
 
     def sync(self):
         if not phrases(self.cfg["words"]):
-            self.sync_lbl.setText("Mets d'abord un mot d'activation (page Général).")
+            self.sync_lbl.setText("Définissez d'abord un mot d'activation (page Général).")
             return
         was = self.stop_engine()  # le micro ne doit servir qu'à l'apprentissage
         SyncDialog(self, dict(self.cfg)).exec()

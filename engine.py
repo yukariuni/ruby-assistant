@@ -82,12 +82,12 @@ class Worker(threading.Thread):
         """Whisper téléchargé ET converti en int8 (une fois, ≈3 s): sans cette copie son chargement monte à 680 Mo (voir models.quantize_ct2)."""
         name, root = self.cfg["whisper"], models.custom_or_none(self.cfg, "whisper")
         if not models.installed(self.cfg, "whisper", name):
-            self.state("downloading", detail=f"Whisper {name} ({models.WHISPER_APPROX.get(name, '')})")
+            self.state("downloading", detail=f"Téléchargement de Whisper {name} ({models.WHISPER_APPROX.get(name, '')})")
             LOG.info("téléchargement de Whisper %s dans %s", name, root or models.folder(self.cfg, "whisper"))
             from faster_whisper.utils import download_model
             download_model(name, cache_dir=root)
         if models.whisper_source(self.cfg, name) == name:  # pas encore de copie int8
-            self.state("downloading", detail=f"Optimisation de Whisper {name} (mémoire réduite, une seule fois)")
+            self.state("downloading", detail=f"Optimisation de Whisper {name}")
             try:
                 models.ensure_int8(self.cfg, name)
             except Exception:  # Ruby marche quand même avec le fichier d'origine: seul le chargement dépasse le plafond (≈680 Mo, 1 s)
@@ -97,10 +97,10 @@ class Worker(threading.Thread):
         """Télécharge ce qui manque (état « Téléchargement… » visible dans les réglages) sans rien charger en mémoire."""
         self.ensure_whisper()
         if not models.installed(self.cfg, "wake"):
-            self.state("downloading", detail="Détection du mot d'activation (≈2,4 Mo)")
+            self.state("downloading", detail="Téléchargement du détecteur de mot d'activation (≈2,4 Mo)")
             models.ensure_wake(models.folder(self.cfg, "wake"))
         if self.cfg["engine"] != config.EDGE and not models.installed(self.cfg, "voice"):
-            self.state("downloading", detail="Voix Supertonic (≈385 Mo)")
+            self.state("downloading", detail="Téléchargement de la voix Supertonic (≈385 Mo)")
             LOG.info("téléchargement de la voix dans %s", models.folder(self.cfg, "voice"))
             try:
                 from supertonic.loader import download_model as download_voice
@@ -207,7 +207,7 @@ class Worker(threading.Thread):
             except Exception as e:
                 LOG.exception("moteur")
                 self.state("error")
-                self.text = f"Erreur: {e}"
+                self.text = f"Erreur : {e}"
                 time.sleep(3)
         self.state("stopped")
 

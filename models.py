@@ -122,7 +122,7 @@ def move(pairs, progress=None, cancel=None):
     for s, d in pairs:
         rs, rd = s.resolve(), d.resolve()
         if rs == rd or rd.is_relative_to(rs) or rs.is_relative_to(rd):
-            raise ValueError("Le nouveau dossier ne peut pas être l'ancien, ni être dans l'ancien (ni l'inverse).")
+            raise ValueError("Le dossier de destination ne peut pas être l'ancien dossier ni en faire partie (ni l'inverse).")
     files = []
     for s, d in pairs:
         if s.is_dir():
@@ -133,7 +133,7 @@ def move(pairs, progress=None, cancel=None):
     if pairs:
         anchor = next(p for p in (pairs[0][1], *pairs[0][1].parents) if p.exists())
         if shutil.disk_usage(anchor).free < total * 1.02 + (64 << 20):
-            raise OSError(f"Pas assez d'espace libre sur le disque de destination ({fmt_size(total)} nécessaires).")
+            raise OSError(f"Espace insuffisant sur le disque de destination ({fmt_size(total)} requis).")
     done, made_dirs, made_files = 0, [], []
     try:
         for f, d in files:
@@ -155,7 +155,7 @@ def move(pairs, progress=None, cancel=None):
                     if progress:
                         progress(done, total, f.name)
             if d.stat().st_size != f.stat().st_size:
-                raise OSError(f"Copie incomplète: {f.name}")
+                raise OSError(f"Copie incomplète : {f.name}")
             shutil.copystat(f, d)
     except BaseException:  # annulation, disque plein, erreur: on efface ce qui a été copié, la source est intacte
         for d in made_files:

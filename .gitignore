@@ -1,4 +1,4 @@
-# environnement et compilation
+# environment and build output
 .venv/
 __pycache__/
 *.pyc
@@ -7,7 +7,7 @@ dist/
 installer/Output/
 *.lnk
 
-# tes données: JAMAIS dans git (clé Groq en clair dans config.json, ta voix, tes enregistrements)
+# user data: NEVER committed (Groq key in clear text in config.json, enrolled voice, recorded commands)
 config.json
 status.json
 engine.lock

@@ -18,16 +18,16 @@ tmp = Path(tempfile.mkdtemp(prefix="ruby_entry_"))
 before = {p.name for p in ROOT.iterdir()}
 r = subprocess.run([sys.executable, str(ROOT / "ruby.py"), "--selftest"], env=dict(os.environ, RUBY_HOME=str(tmp)), capture_output=True)
 report = (tmp / "selftest.txt").read_text("utf-8")
-assert r.returncode == 0 and "ÉCHEC" not in report and report.count("OK") >= 30, (r.returncode, report)
+assert r.returncode == 0 and "FAIL" not in report and report.count("OK") >= 30, (r.returncode, report)
 assert (tmp / "voice").is_dir(), "le dossier de données est créé là où RUBY_HOME le demande"
 assert {p.name for p in ROOT.iterdir()} - before <= {"__pycache__"}, "rien n'est écrit dans le dossier du projet"
 
-# un module manquant fait échouer l'autotest (code 1 + ÉCHEC dans le rapport), au lieu d'un exe qui plante plus tard chez quelqu'un d'autre
+# un module manquant fait échouer l'autotest (code 1 + FAIL dans le rapport), au lieu d'un exe qui plante plus tard chez quelqu'un d'autre
 broken = tmp / "cassé"
 (broken / "joblib").mkdir(parents=True)
 (broken / "joblib" / "__init__.py").write_text("raise ImportError('manque')")
 r = subprocess.run([sys.executable, str(ROOT / "ruby.py"), "--selftest"], env=dict(os.environ, RUBY_HOME=str(tmp), PYTHONPATH=str(broken)), capture_output=True)
-assert r.returncode == 1 and "ÉCHEC  import joblib" in (tmp / "selftest.txt").read_text("utf-8")
+assert r.returncode == 1 and "FAIL   import joblib" in (tmp / "selftest.txt").read_text("utf-8")
 
 # --quit demande l'arrêt (l'installateur s'en sert); un « arrêter » resté d'avant, quand rien ne tournait, ne doit pas tuer le moteur suivant
 env = dict(os.environ, RUBY_HOME=str(tmp), QT_QPA_PLATFORM="offscreen")

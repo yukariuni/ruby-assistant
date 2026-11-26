@@ -121,14 +121,14 @@ w.delete_model(by["voice"])
 config.QUIT_FILE.unlink(missing_ok=True)
 assert not models.installed(w.cfg, "voice") and models.items(w.cfg, "voice") == []
 assert launched == [], "Ruby ne repart pas toute seule: elle retélécharge un modèle de 385 Mo sans qu'on l'ait décidé"
-assert "Ruby est arrêtée" in w.toast_widget.text(), w.toast_widget.text()
+assert "Ruby arrêté" in w.toast_widget.text(), w.toast_widget.text()
 w.read_status = lambda: None
 
 # --- supprimer ta voix apprise: « synced » est remis à zéro, Ruby demandera de refaire l'apprentissage
 answers[:] = [1]
 w.delete_model([r for r in settings.model_rows(w.cfg)[0] if r["kind"] == "mine"][0])
 assert not config.MODEL_FILE.exists() and not config.SAMPLES_FILE.exists() and saved()["synced"] == ""
-assert [r for r in settings.model_rows(w.cfg)[0] if r["kind"] == "mine"][0]["status"][0] == "À apprendre"
+assert [r for r in settings.model_rows(w.cfg)[0] if r["kind"] == "mine"][0]["status"][0] == "À enregistrer"
 
 # --- changer le dossier AVEC déplacement (le vrai MoveDialog, sur un vrai thread)
 new_root = tmp / "disque_d"
@@ -136,7 +136,7 @@ new_root.mkdir()
 QFileDialog.getExistingDirectory = staticmethod(lambda *a, **k: str(new_root))
 answers[:] = [2]  # « Déplacer »
 w.change_folder("whisper")
-assert asks[-1][0] == "Déplacer les fichiers déjà téléchargés ?" and str(new_root / "whisper") in asks[-1][1]
+assert asks[-1][0] == "Déplacer les fichiers existants ?" and str(new_root / "whisper") in asks[-1][1]
 assert saved()["paths"]["whisper"] == str(new_root / "whisper"), "le nouveau dossier est enregistré (le moteur le relit à chaud)"
 assert (new_root / "whisper" / "models--Systran--faster-whisper-small" / "snapshots" / "h" / "model.bin").read_bytes() == b"w" * 5000
 assert not (root / "whisper" / "models--Systran--faster-whisper-small").exists(), "l'ancien emplacement est nettoyé"
@@ -186,7 +186,7 @@ assert d.exec() == QDialog.Rejected and not (tmp / "copie").exists() and (tmp / 
 config.STATUS_FILE.write_text(json.dumps(dict(state="downloading", detail="Whisper medium (≈1,5 Go)", score=0, text="", reply="", ts=__import__("time").time())), "utf-8")
 del w.read_status
 w.poll()
-assert w.home_state.text() == "Téléchargement…" and "Whisper medium" in w.tip.text() and w.running
+assert w.home_state.text() == "Préparation…" and "Whisper medium" in w.tip.text() and w.running
 
 # --- plafond de mémoire: la fenêtre compte avec le moteur, et « Écouter » ne charge jamais la voix pendant que le moteur travaille
 import sys
@@ -196,7 +196,7 @@ assert w.trimmer.isActive() and w.trimmer.interval() == 5000, "la fenêtre rend 
 status = lambda **k: config.STATUS_FILE.write_text(json.dumps(dict(state="listening", score=0, text="", reply="", ts=time.time(), **k)), "utf-8")
 status(mem=12, loaded=[])
 w.poll()
-assert f"sur {config.MEM_LIMIT}" in w.mem_lbl.text() and "moteur 12" in w.mem_lbl.text() and "aucun modèle chargé" in w.mem_lbl.text(), w.mem_lbl.text()
+assert f"sur {config.MEM_LIMIT}" in w.mem_lbl.text() and "moteur 12" in w.mem_lbl.text() and "Aucun modèle chargé" in w.mem_lbl.text(), w.mem_lbl.text()
 spoken = []
 
 
@@ -211,7 +211,7 @@ class FakeSpeaker:
 sys.modules["tts"] = types.SimpleNamespace(Speaker=FakeSpeaker)
 status(mem=430, loaded=["Whisper small"])
 w.test_voice()
-assert spoken == [] and w.test_btn.isEnabled() and "traiter une commande" in w.voice_err.text(), "moteur occupé: la voix n'est pas chargée ici en plus"
+assert spoken == [] and w.test_btn.isEnabled() and "Commande en cours de traitement" in w.voice_err.text(), "moteur occupé: la voix n'est pas chargée ici en plus"
 status(mem=12, loaded=[])
 w.test_voice()
 for _ in range(50):
